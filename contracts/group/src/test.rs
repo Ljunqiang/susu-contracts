@@ -159,6 +159,52 @@ fn constructor_stores_configuration_and_opens_the_group() {
 }
 
 #[test]
+fn constructor_emits_group_initialized_with_the_full_configuration() {
+    // Deliberately not `setup()`: `events().all()` reflects the most recent
+    // invocation, and setup funds members with token mints that would replace
+    // the constructor's event. Register, then assert before anything else runs.
+    let env = Env::default();
+    env.mock_all_auths();
+    let treasury = Address::generate(&env);
+    let token = env
+        .register_stellar_asset_contract_v2(Address::generate(&env))
+        .address();
+    let group_id = env.register(
+        GroupContract,
+        (
+            Address::generate(&env), // factory (informational)
+            Address::generate(&env), // creator (informational)
+            token.clone(),
+            treasury.clone(),
+            10 * ONE_USDC,
+            3u32,
+            ONE_WEEK,
+            MAX_FEE_BPS,
+        ),
+    );
+
+    let emitted = env.events().all().filter_by_contract(&group_id);
+    let expected = GroupInitialized {
+        token,
+        treasury,
+        contribution_amount: 10 * ONE_USDC,
+        member_capacity: 3,
+        frequency_seconds: ONE_WEEK,
+        fee_bps: MAX_FEE_BPS,
+    }
+    .to_xdr(&env, &group_id);
+    assert!(
+        emitted.events().contains(&expected),
+        "construction must publish the full configuration exactly as stored"
+    );
+    assert_eq!(
+        emitted.events().len(),
+        1,
+        "the constructor publishes exactly one event"
+    );
+}
+
+#[test]
 #[should_panic]
 fn constructor_rejects_non_positive_contribution_amount() {
     let env = Env::default();

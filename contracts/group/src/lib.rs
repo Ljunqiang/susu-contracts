@@ -264,6 +264,25 @@ pub enum GroupError {
 // the host), so events are already scoped to this group.
 // ---------------------------------------------------------------------------
 
+/// The group was constructed with this immutable configuration.
+///
+/// Published exactly once, from the constructor, so a group deployed by any
+/// route — not only through the Factory's `group_created` — has an on-chain
+/// record of its configuration to reconcile against. `token` is the topic so
+/// an indexer can key groups by asset; the remaining configuration rides in
+/// data as one record (three topics total, one under the limit).
+#[contractevent(topics = ["susu", "group_initialized"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GroupInitialized {
+    #[topic]
+    pub token: Address,
+    pub treasury: Address,
+    pub contribution_amount: i128,
+    pub member_capacity: u32,
+    pub frequency_seconds: u64,
+    pub fee_bps: u32,
+}
+
 /// A member joined the group at a position in the payout order.
 #[contractevent(topics = ["susu", "join"])]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -386,6 +405,16 @@ impl GroupContract {
         storage.set(&DataKey::RoundPhase, &RoundPhase::WaitingForContributions);
         storage.set(&DataKey::MemberCount, &0u32);
         extend_instance_ttl(&env);
+
+        GroupInitialized {
+            token: config.token.clone(),
+            treasury: config.treasury.clone(),
+            contribution_amount: config.contribution_amount,
+            member_capacity: config.member_capacity,
+            frequency_seconds: config.frequency_seconds,
+            fee_bps: config.fee_bps,
+        }
+        .publish(&env);
     }
 
     /// Join the group, taking the next position in the payout order.
