@@ -100,6 +100,8 @@ pub enum FactoryError {
     /// the admin can still reach `pause` and recover a contract whose instance
     /// entry has archived.
     NotInitialized = 9,
+    /// Token address cannot be the Factory itself.
+    InvalidToken = 10,
 }
 
 /// A new group contract was deployed and registered.
@@ -213,6 +215,9 @@ impl FactoryContract {
 
         if config.paused {
             return Err(FactoryError::Paused);
+        }
+        if token == env.current_contract_address() {
+            return Err(FactoryError::InvalidToken);
         }
         if contribution_amount <= 0
             || contribution_amount
@@ -344,6 +349,9 @@ impl FactoryContract {
 
         let storage = env.storage().instance();
         let mut config = load_config(&env)?;
+        if config.paused {
+            return Ok(());
+        }
         config.paused = true;
         storage.set(&DataKey::Config, &config);
 
@@ -358,6 +366,9 @@ impl FactoryContract {
 
         let storage = env.storage().instance();
         let mut config = load_config(&env)?;
+        if !config.paused {
+            return Ok(());
+        }
         config.paused = false;
         storage.set(&DataKey::Config, &config);
 
